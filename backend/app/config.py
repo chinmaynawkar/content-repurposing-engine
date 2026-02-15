@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
+    LOG_LEVEL: str = "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 
 
 # Create a global settings object to be imported elsewhere in the app

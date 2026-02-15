@@ -102,11 +102,13 @@ Coming soon.
 
 ## Environment Variables
 
-| Variable         | Description                           |
-| ---------------- | ------------------------------------- |
-| `DATABASE_URL`   | Supabase PostgreSQL connection string |
-| `GEMINI_API_KEY` | Google AI Studio API key              |
-| `GROQ_API_KEY`   | Groq Console API key                  |
+| Variable         | Description                                                |
+| ---------------- | ---------------------------------------------------------- |
+| `DATABASE_URL`   | Supabase PostgreSQL connection string                      |
+| `GEMINI_API_KEY` | Google AI Studio API key                                   |
+| `GROQ_API_KEY`   | Groq Console API key                                       |
+| `LOG_LEVEL`      | DEBUG, INFO, WARNING, ERROR (default: INFO)                 |
+| `ENVIRONMENT`    | development or production (affects log format: console/JSON)|
 
 ## Current Status
 
