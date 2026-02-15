@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.logging_config import configure_logging, get_logger
 
@@ -26,6 +27,14 @@ app = FastAPI(
     description="AI-powered API to repurpose long-form content into LinkedIn, Twitter, Instagram, and more.",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -62,3 +71,9 @@ async def root():
 async def health():
     """Health check endpoint for monitoring and load balancers."""
     return {"status": "ok"}
+
+
+@app.get("/api/health", tags=["Health"])
+async def api_health():
+    """Health check for frontend integration."""
+    return {"status": "healthy", "message": "All systems operational"}
