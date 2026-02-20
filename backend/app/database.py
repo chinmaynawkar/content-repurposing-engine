@@ -1,28 +1,38 @@
-"""Database connection and session management."""
+"""Async database connection and session management."""
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
-
+# Async version of SQLAlchemy engine creation for PostgreSQL (using asyncpg driver)
+from sqlalchemy.ext.asyncio import (
+    create_async_engine,
+    AsyncSession,
+    async_sessionmaker,
+)
+# Base class for declarative ORM table models (used for defining ORM models)
+from sqlalchemy.orm import declarative_base
+from sqlalchemy.pool import NullPool
 from app.config import settings
-from app.models import Base
 
-engine = create_engine(
-    settings.DATABASE_URL,
-    pool_pre_ping=True,
+# Supabase URL is postgresql://... ; asyncpg needs postgresql+asyncpg://...
+url = settings.DATABASE_URL
+if url.startswith("postgresql://"):
+    url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+# echo=True logs every SQL statement; use DEBUG or SQL_ECHO for troubleshooting
+engine = create_async_engine(url, poolclass=NullPool, echo=False)
+
+AsyncSessionLocal = async_sessionmaker(
+    engine, class_=AsyncSession, expire_on_commit=False
 )
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
 
 
-def get_db() -> Session:
-    """Dependency that yields a database session. Closes on request end."""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-def init_db() -> None:
-    """Create all tables. Call once at startup (optional for Supabase-managed schema)."""
-    Base.metadata.create_all(bind=engine)
+async def get_db():
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
