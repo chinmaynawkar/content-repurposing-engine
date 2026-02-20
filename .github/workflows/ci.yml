@@ -53,6 +53,9 @@ jobs:
           pytest tests/ -v
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          # Placeholders for Pydantic Settings; content API tests do not call AI APIs
+          GEMINI_API_KEY: ci-placeholder
+          GROQ_API_KEY: ci-placeholder
 
   frontend-build:
     name: frontend-build
