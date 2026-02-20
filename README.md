@@ -38,11 +38,37 @@ the-content-hub/
 │   │   └── services/
 │   ├── requirements.txt
 │   └── .env
-├── frontend/          # (planned)
+├── frontend/          # React + Vite + TypeScript
+├── .github/workflows/ # CI (ci.yml)
 ├── memory-bank/
 ├── md-docs/
 └── README.md
 ```
+
+## Branch strategy and CI
+
+- **`dev`**: Active development. CI runs on every push to `dev`.
+- **`main`**: Production-ready. Merges only via pull request after CI passes.
+
+**CI checks** (see [.github/workflows/ci.yml](.github/workflows/ci.yml)):
+
+| Check            | What runs |
+|------------------|-----------|
+| backend-tests    | Python 3.11, PostgreSQL service, schema apply, `pytest tests/ -v` |
+| frontend-build   | Node 20, `npm ci`, `npm run build` (tsc + vite build) |
+| frontend-lint    | Node 20, `npm ci`, `npm run lint` (eslint) |
+
+**Run the same checks locally:**
+
+```bash
+# Backend (requires local Postgres or DATABASE_URL to Supabase)
+cd backend && pip install -r requirements-dev.txt && pytest tests/ -v
+
+# Frontend
+cd frontend && npm ci && npm run build && npm run lint
+```
+
+**Branch protection:** In GitHub → Settings → Branches → Add rule for `main`, require a pull request and require status checks `backend-tests`, `frontend-build`, and `frontend-lint` to pass before merging. See [md-docs/ci-pipeline.md](md-docs/ci-pipeline.md) for details.
 
 ## Prerequisites
 
