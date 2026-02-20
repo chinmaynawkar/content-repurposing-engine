@@ -4,10 +4,14 @@ import time
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.database import Base, engine, get_db
 from app.logging_config import configure_logging, get_logger
+from app.routers import content
 
 # Configure logging before first log (must run before get_logger in routers/services)
 configure_logging()
@@ -18,6 +22,8 @@ log = get_logger(__name__)
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Startup and shutdown lifecycle."""
     log.info("application_startup", version="0.1.0")
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
     yield
     log.info("application_shutdown")
 
@@ -29,9 +35,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Allow both localhost and 127.0.0.1 so CORS works whether user opens app via localhost:5173 or 127.0.0.1:5173
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -73,7 +83,14 @@ async def health():
     return {"status": "ok"}
 
 
+app.include_router(content.router)
+
+
 @app.get("/api/health", tags=["Health"])
-async def api_health():
-    """Health check for frontend integration."""
-    return {"status": "healthy", "message": "All systems operational"}
+async def api_health(db: AsyncSession = Depends(get_db)):
+    """Health check with DB connectivity."""
+    try:
+        await db.execute(text("SELECT 1"))
+        return {"status": "healthy", "database": "connected", "message": "All systems operational"}
+    except Exception as e:
+        return {"status": "unhealthy", "database": "error", "detail": str(e)}
