@@ -16,7 +16,7 @@ jobs:
       postgres:
         image: postgres
         env:
-          POSTGRES_PASSWORD: postgres
+          POSTGRES_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD }}
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -38,8 +38,9 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
 
       - name: Apply database schema
-        run: |
-          PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -f backend/supabase/schema.sql
+        env:
+          PGPASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD }}
+        run: psql -h localhost -U postgres -d postgres -f backend/supabase/schema.sql
 
       - name: Install backend dependencies
         run: |
@@ -52,7 +53,7 @@ jobs:
           cd backend
           pytest tests/ -v
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          DATABASE_URL: ${{ secrets.CI_DATABASE_URL }}
           # Placeholders for Pydantic Settings; content API tests do not call AI APIs
           GEMINI_API_KEY: ci-placeholder
           GROQ_API_KEY: ci-placeholder
