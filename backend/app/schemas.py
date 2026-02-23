@@ -22,3 +22,20 @@ class ContentResponse(ContentBase):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class LinkedInPostOut(BaseModel):
+    """A single generated LinkedIn post from long-form content."""
+    id: int
+    content_id: int
+    title: Optional[str]
+    body: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class LinkedInGenerateResponse(BaseModel):
+    """API response: generated LinkedIn posts for a given content_id."""
+    content_id: int
+    posts: list[LinkedInPostOut]
