@@ -113,3 +113,104 @@ def test_generate_linkedin_500_empty_result(
     resp = client.post(f"/api/generate/linkedin/{content_id}")
     assert resp.status_code == 500
 
+
+def test_generate_twitter_happy_path(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+) -> None:
+    content_id = _create_content(
+        client,
+        "This is a sufficiently long piece of content used for Twitter generation tests.",
+    )
+
+    def fake_generate(_: str) -> list[dict[str, Any]]:
+        return [
+            {"title": "Thread 1", "tweets": ["Tweet 1.1", "Tweet 1.2"]},
+            {"title": "Thread 2", "tweets": ["Tweet 2.1", "Tweet 2.2"]},
+        ]
+
+    monkeypatch.setattr(
+        "app.routers.generate.generate_twitter_threads_from_text",
+        fake_generate,
+    )
+
+    resp = client.post(f"/api/generate/twitter/{content_id}")
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["content_id"] == content_id
+    assert isinstance(data["threads"], list)
+    assert len(data["threads"]) == 2
+    first = data["threads"][0]
+    assert {"id", "content_id", "title", "tweets", "created_at"} <= set(first.keys())
+    assert first["tweets"] == ["Tweet 1.1", "Tweet 1.2"]
+
+
+def test_generate_twitter_404_missing_content(client: TestClient) -> None:
+    resp = client.post("/api/generate/twitter/999999")
+    assert resp.status_code == 404
+
+
+def test_generate_twitter_400_too_short(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+) -> None:
+    content_id = _create_content(client, "short text")
+
+    def fake_generate(_: str) -> list[dict[str, Any]]:
+        raise AssertionError("Service should not be called for too-short content")
+
+    monkeypatch.setattr(
+        "app.routers.generate.generate_twitter_threads_from_text",
+        fake_generate,
+    )
+
+    resp = client.post(f"/api/generate/twitter/{content_id}")
+    assert resp.status_code == 400
+
+
+def test_generate_twitter_422_invalid_id(client: TestClient) -> None:
+    resp = client.post("/api/generate/twitter/not-an-int")
+    assert resp.status_code == 422
+
+
+def test_generate_twitter_502_service_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+) -> None:
+    content_id = _create_content(
+        client,
+        "This is valid content for testing Twitter service failure handling.",
+    )
+
+    def failing_generate(_: str) -> list[dict[str, Any]]:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(
+        "app.routers.generate.generate_twitter_threads_from_text",
+        failing_generate,
+    )
+
+    resp = client.post(f"/api/generate/twitter/{content_id}")
+    assert resp.status_code == 502
+
+
+def test_generate_twitter_500_empty_result(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+) -> None:
+    content_id = _create_content(
+        client,
+        "This is valid content that will produce an empty list of threads.",
+    )
+
+    def empty_generate(_: str) -> list[dict[str, Any]]:
+        return []
+
+    monkeypatch.setattr(
+        "app.routers.generate.generate_twitter_threads_from_text",
+        empty_generate,
+    )
+
+    resp = client.post(f"/api/generate/twitter/{content_id}")
+    assert resp.status_code == 500
+

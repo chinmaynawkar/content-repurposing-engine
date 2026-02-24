@@ -39,3 +39,22 @@ class LinkedInGenerateResponse(BaseModel):
     """API response: generated LinkedIn posts for a given content_id."""
     content_id: int
     posts: list[LinkedInPostOut]
+
+
+class TwitterThreadOut(BaseModel):
+    """A single generated Twitter/X thread from long-form content."""
+
+    id: int
+    content_id: int
+    title: Optional[str]
+    tweets: list[str]
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class TwitterGenerateResponse(BaseModel):
+    """API response: generated Twitter/X threads for a given content_id."""
+
+    content_id: int
+    threads: list[TwitterThreadOut]
