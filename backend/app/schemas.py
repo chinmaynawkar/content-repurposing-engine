@@ -1,7 +1,7 @@
 """Pydantic schemas for content and generated_posts."""
 
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -85,3 +85,32 @@ class InstagramGenerateRequest(BaseModel):
     audience: str
     tone: str
     goal: Optional[str] = None
+
+
+class SeoMetaVariant(BaseModel):
+    """A single generated SEO meta description variant."""
+
+    id: int
+    description: str
+    character_count: int
+    primary_keyword: str
+
+
+class SeoMetaResponse(BaseModel):
+    """API response: generated SEO meta descriptions for a given content_id."""
+
+    content_id: int
+    metas: list[SeoMetaVariant]
+
+
+class SeoMetaGenerateRequest(BaseModel):
+    """Request body to generate SEO meta descriptions for a content item."""
+
+    primary_keyword: str
+    search_intent: Literal[
+        "informational",
+        "transactional",
+        "navigational",
+        "commercial",
+    ]
+    tone: Optional[str] = None

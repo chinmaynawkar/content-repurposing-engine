@@ -9,13 +9,18 @@ from app.schemas import (
     InstagramCaptionResponse,
     InstagramGenerateRequest,
     LinkedInGenerateResponse,
+    SeoMetaGenerateRequest,
+    SeoMetaResponse,
     TwitterGenerateResponse,
 )
 from app.services.gemini_service import (
     generate_instagram_captions_from_text,
     generate_linkedin_posts_from_text,
 )
-from app.services.groq_service import generate_twitter_threads_from_text
+from app.services.groq_service import (
+    generate_seo_meta_from_text,
+    generate_twitter_threads_from_text,
+)
 
 
 router = APIRouter(prefix="/api/generate", tags=["generate"])
@@ -287,3 +292,91 @@ async def generate_instagram_captions(
         )
 
     return InstagramCaptionResponse(content_id=content.id, captions=captions)
+
+
+@router.post(
+    "/seo/{content_id}",
+    response_model=SeoMetaResponse,
+    status_code=201,
+)
+async def generate_seo_meta(
+    content_id: int,
+    body: SeoMetaGenerateRequest,
+    db: AsyncSession = Depends(get_db),
+) -> SeoMetaResponse:
+    """
+    Generate up to 3 SEO meta description variants from long-form content using Groq.
+
+    Requires request body: primary_keyword, search_intent, optional tone.
+    """
+    result = await db.execute(select(Content).where(Content.id == content_id))
+    content = result.scalar_one_or_none()
+    if content is None:
+        raise HTTPException(status_code=404, detail="Content not found")
+
+    text = (content.original_text or "").strip()
+    if len(text) < 20:
+        raise HTTPException(status_code=400, detail="Content too short for generation")
+
+    try:
+        generated = generate_seo_meta_from_text(
+            text,
+            title=content.title,
+            primary_keyword=body.primary_keyword,
+            search_intent=body.search_intent,
+            tone=body.tone,
+        )
+    except Exception as exc:
+        log.warning(
+            "groq_seo_generation_failed",
+            content_id=content_id,
+            error=str(exc),
+        )
+        raise HTTPException(status_code=502, detail="SEO generation failed")
+
+    if not generated:
+        log.warning("groq_seo_returned_no_metas", content_id=content_id)
+        raise HTTPException(status_code=500, detail="No meta descriptions generated")
+
+    meta_rows: list[GeneratedPost] = []
+    for item in generated:
+        description = (item.get("description") or "").strip()
+        if not description:
+            continue
+        row = GeneratedPost(
+            content_id=content.id,
+            platform="seo",
+            generated_text=description,
+            post_metadata={
+                "primary_keyword": item.get("primary_keyword") or body.primary_keyword,
+                "character_count": item.get("character_count", len(description)),
+            },
+        )
+        db.add(row)
+        meta_rows.append(row)
+
+    if not meta_rows:
+        log.warning("no_valid_seo_metas_to_persist", content_id=content_id)
+        raise HTTPException(status_code=500, detail="No meta descriptions generated")
+
+    await db.commit()
+    for row in meta_rows:
+        await db.refresh(row)
+
+    metas = []
+    for row in meta_rows:
+        meta = row.post_metadata or {}
+        description = row.generated_text or meta.get("description", "")
+        metas.append(
+            {
+                "id": row.id,
+                "description": description,
+                "character_count": meta.get(
+                    "character_count",
+                    len(description),
+                ),
+                "primary_keyword": meta.get("primary_keyword", body.primary_keyword),
+            }
+        )
+
+    return SeoMetaResponse(content_id=content.id, metas=metas)

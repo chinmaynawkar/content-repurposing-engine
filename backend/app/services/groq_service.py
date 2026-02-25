@@ -92,6 +92,41 @@ def _strip_json_fences(raw: str) -> str:
     return text
 
 
+SEO_SYSTEM_PROMPT = """
+You are an SEO expert writing meta descriptions for search engine result pages (SERPs).
+
+Given a long-form piece of content, you will generate multiple high-quality meta
+descriptions that would appear under a page title in Google search results.
+
+Each meta description must:
+- Clearly explain what the page is about.
+- Include the primary keyword naturally.
+- Use active voice and be benefit-driven.
+- Optionally end with a soft call-to-action (e.g., "Learn more", "Read the full guide").
+"""
+
+
+SEO_OUTPUT_INSTRUCTIONS = """
+Return ONLY valid JSON in this exact schema:
+
+{
+  "metas": [
+    {
+      "description": "Meta description text",
+      "primary_keyword": "the main keyword this meta targets"
+    }
+  ]
+}
+
+Constraints:
+- Generate exactly 3 meta descriptions.
+- Each description should be between 120 and 158 characters.
+- Each description MUST include the primary keyword at least once.
+- No markdown, no backticks, no explanations.
+- Only return JSON.
+"""
+
+
 def _normalize_threads(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Extract and normalize threads to [{\"title\": str, \"tweets\": [str]}, ...]."""
     threads = parsed.get("threads")
@@ -131,6 +166,42 @@ def _normalize_threads(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
         )
 
     return normalized
+
+
+def _normalize_seo_metas(
+    parsed: Dict[str, Any],
+    primary_keyword: str,
+) -> List[Dict[str, Any]]:
+    """Extract and normalize SEO metas to a list of dicts.
+
+    Each dict has: {\"id\", \"description\", \"character_count\", \"primary_keyword\"}.
+    """
+    metas = parsed.get("metas")
+    if not isinstance(metas, list):
+        return []
+
+    normalized: List[Dict[str, Any]] = []
+
+    for idx, item in enumerate(metas, start=1):
+        if not isinstance(item, dict):
+            continue
+
+        description = str(item.get("description") or "").strip()
+        if not description:
+            continue
+
+        character_count = len(description)
+        normalized.append(
+            {
+                "id": idx,
+                "description": description,
+                "character_count": character_count,
+                "primary_keyword": primary_keyword,
+            }
+        )
+
+    # Keep at most 3 variants; callers treat empty list as an error.
+    return normalized[:3]
 
 
 def generate_twitter_threads_from_text(content_text: str) -> List[Dict[str, Any]]:
@@ -195,4 +266,98 @@ def generate_twitter_threads_from_text(content_text: str) -> List[Dict[str, Any]
         return []
 
     return _normalize_threads(parsed_dict)
+
+
+def generate_seo_meta_from_text(
+    content_text: str,
+    *,
+    title: str | None,
+    primary_keyword: str,
+    search_intent: str,
+    tone: str | None = None,
+) -> List[Dict[str, Any]]:
+    """
+    Generate up to 3 SEO meta description dicts from long-form text using Groq.
+
+    Returns a list of dicts compatible with SeoMetaVariant:
+    [{\"id\", \"description\", \"character_count\", \"primary_keyword\"}, ...].
+
+    On API or network failure, raises (caller should map to 502).
+    On parse failure or empty/invalid JSON, returns [] (caller should map to 500).
+    """
+    # Build the prompt for the Groq API to generate SEO meta descriptions.
+    # - If there is no content, return an empty list.
+    # - Collect the prompt instructions, page title, keyword, search intent, tone, and content.
+    # - Join it all together for the model.
+
+    if not content_text or not content_text.strip():
+        # If there is no content to analyze, return an empty list.
+        return []
+
+    parts: list[str] = [SEO_SYSTEM_PROMPT.strip(), ""]
+
+    if title:
+        # If a title is given, add it to the prompt.
+        parts.append(f"Page title: {title.strip()}")
+
+    # Always add primary keyword and search intent to the prompt.
+    parts.append(f"Primary keyword: {primary_keyword.strip()}")
+    parts.append(f"Search intent: {search_intent.strip()}")
+
+    if tone:
+        # If a tone is given, add it to the prompt.
+        parts.append(f"Tone: {tone.strip()}")
+
+    # Add the main content to the prompt, separated for clarity.
+    parts.append("\nLong-form content:\n")
+    parts.append(f"\"\"\"{content_text.strip()}\"\"\"")
+    parts.append("\n")
+
+    # Add instructions for how the output should be formatted.
+    parts.append(SEO_OUTPUT_INSTRUCTIONS.strip())
+
+    prompt = "\n".join(parts)
+
+    try:
+        completion = client.chat.completions.create(
+            model=TWITTER_MODEL,
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
+            temperature=0.5,
+        )
+    except Exception as e:  # pragma: no cover - mapped to 502 by caller
+        log.warning("groq_seo_generate_failed", error=str(e))
+        raise
+
+    if not completion or not completion.choices:
+        log.warning("groq_seo_empty_completion", model=TWITTER_MODEL)
+        return []
+
+    raw_text = getattr(completion.choices[0].message, "content", None)
+    if not raw_text or not str(raw_text).strip():
+        log.warning("groq_seo_empty_response", model=TWITTER_MODEL)
+        return []
+
+    text = str(raw_text).strip()
+
+    # Parse JSON; retry after stripping code fences if needed.
+    try:
+        parsed_dict = json.loads(text)
+    except json.JSONDecodeError:
+        stripped = _strip_json_fences(text)
+        try:
+            parsed_dict = json.loads(stripped)
+        except json.JSONDecodeError as e:
+            log.warning("groq_seo_invalid_json", error=str(e))
+            return []
+
+    if not isinstance(parsed_dict, dict):
+        log.warning("groq_seo_unexpected_structure", type=type(parsed_dict).__name__)
+        return []
+
+    return _normalize_seo_metas(parsed_dict, primary_keyword=primary_keyword)
 

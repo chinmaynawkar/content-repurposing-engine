@@ -214,3 +214,345 @@ def test_generate_twitter_500_empty_result(
     resp = client.post(f"/api/generate/twitter/{content_id}")
     assert resp.status_code == 500
 
+
+def test_generate_instagram_happy_path(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+) -> None:
+    content_id = _create_content(
+        client,
+        "This is a sufficiently long piece of content used for Instagram generation tests.",
+    )
+
+    def fake_generate(
+        _: str,
+        *,
+        audience: str,
+        tone: str,
+        goal: str | None = None,
+        title: str | None = None,
+    ) -> list[dict[str, Any]]:
+        assert audience == "creators"
+        assert tone == "friendly"
+        return [
+            {
+                "id": 1,
+                "style": "short_hook",
+                "text": "Caption 1",
+                "hashtags": ["#one", "#two"],
+                "character_count": 9,
+            },
+            {
+                "id": 2,
+                "style": "story",
+                "text": "Caption 2",
+                "hashtags": ["#three"],
+                "character_count": 9,
+            },
+        ]
+
+    monkeypatch.setattr(
+        "app.routers.generate.generate_instagram_captions_from_text",
+        fake_generate,
+    )
+
+    resp = client.post(
+        f"/api/generate/instagram/{content_id}",
+        json={"audience": "creators", "tone": "friendly", "goal": "drive saves"},
+    )
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["content_id"] == content_id
+    assert isinstance(data["captions"], list)
+    assert len(data["captions"]) == 2
+    first = data["captions"][0]
+    assert {"id", "style", "text", "hashtags", "character_count"} <= set(first.keys())
+    assert first["text"] == "Caption 1"
+
+
+def test_generate_instagram_404_missing_content(client: TestClient) -> None:
+    resp = client.post(
+        "/api/generate/instagram/999999",
+        json={"audience": "creators", "tone": "friendly"},
+    )
+    assert resp.status_code == 404
+
+
+def test_generate_instagram_400_too_short(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+) -> None:
+    content_id = _create_content(client, "short text")
+
+    def fake_generate(
+        _: str,
+        *,
+        audience: str,
+        tone: str,
+        goal: str | None = None,
+        title: str | None = None,
+    ) -> list[dict[str, Any]]:
+        raise AssertionError("Service should not be called for too-short content")
+
+    monkeypatch.setattr(
+        "app.routers.generate.generate_instagram_captions_from_text",
+        fake_generate,
+    )
+
+    resp = client.post(
+        f"/api/generate/instagram/{content_id}",
+        json={"audience": "creators", "tone": "friendly"},
+    )
+    assert resp.status_code == 400
+
+
+def test_generate_instagram_422_invalid_id(client: TestClient) -> None:
+    resp = client.post(
+        "/api/generate/instagram/not-an-int",
+        json={"audience": "creators", "tone": "friendly"},
+    )
+    assert resp.status_code == 422
+
+
+def test_generate_instagram_502_service_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+) -> None:
+    content_id = _create_content(
+        client,
+        "This is valid content for testing Instagram service failure handling.",
+    )
+
+    def failing_generate(
+        _: str,
+        *,
+        audience: str,
+        tone: str,
+        goal: str | None = None,
+        title: str | None = None,
+    ) -> list[dict[str, Any]]:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(
+        "app.routers.generate.generate_instagram_captions_from_text",
+        failing_generate,
+    )
+
+    resp = client.post(
+        f"/api/generate/instagram/{content_id}",
+        json={"audience": "creators", "tone": "friendly"},
+    )
+    assert resp.status_code == 502
+
+
+def test_generate_instagram_500_empty_result(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+) -> None:
+    content_id = _create_content(
+        client,
+        "This is valid content that will produce an empty list of Instagram captions.",
+    )
+
+    def empty_generate(
+        _: str,
+        *,
+        audience: str,
+        tone: str,
+        goal: str | None = None,
+        title: str | None = None,
+    ) -> list[dict[str, Any]]:
+        return []
+
+    monkeypatch.setattr(
+        "app.routers.generate.generate_instagram_captions_from_text",
+        empty_generate,
+    )
+
+    resp = client.post(
+        f"/api/generate/instagram/{content_id}",
+        json={"audience": "creators", "tone": "friendly"},
+    )
+    assert resp.status_code == 500
+
+
+def test_generate_seo_happy_path(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+) -> None:
+    content_id = _create_content(
+        client,
+        "This is a sufficiently long piece of content used for SEO meta generation tests.",
+    )
+
+    def fake_generate(
+        _: str,
+        *,
+        title: str | None,
+        primary_keyword: str,
+        search_intent: str,
+        tone: str | None = None,
+    ) -> list[dict[str, Any]]:
+        assert primary_keyword == "productivity tips"
+        assert search_intent == "informational"
+        assert tone == "friendly"
+        return [
+            {
+                "id": 1,
+                "description": "First SEO meta description about productivity tips.",
+                "character_count": 60,
+                "primary_keyword": primary_keyword,
+            },
+            {
+                "id": 2,
+                "description": "Second SEO meta description about productivity tips.",
+                "character_count": 62,
+                "primary_keyword": primary_keyword,
+            },
+        ]
+
+    monkeypatch.setattr(
+        "app.routers.generate.generate_seo_meta_from_text",
+        fake_generate,
+    )
+
+    resp = client.post(
+        f"/api/generate/seo/{content_id}",
+        json={
+            "primary_keyword": "productivity tips",
+            "search_intent": "informational",
+            "tone": "friendly",
+        },
+    )
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["content_id"] == content_id
+    assert isinstance(data["metas"], list)
+    assert len(data["metas"]) == 2
+    first = data["metas"][0]
+    assert {"id", "description", "character_count", "primary_keyword"} <= set(first.keys())
+    assert first["primary_keyword"] == "productivity tips"
+
+
+def test_generate_seo_404_missing_content(client: TestClient) -> None:
+    resp = client.post(
+        "/api/generate/seo/999999",
+        json={
+            "primary_keyword": "productivity tips",
+            "search_intent": "informational",
+        },
+    )
+    assert resp.status_code == 404
+
+
+def test_generate_seo_400_too_short(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+) -> None:
+    content_id = _create_content(client, "short text")
+
+    def fake_generate(
+        _: str,
+        *,
+        title: str | None,
+        primary_keyword: str,
+        search_intent: str,
+        tone: str | None = None,
+    ) -> list[dict[str, Any]]:
+        raise AssertionError("Service should not be called for too-short content")
+
+    monkeypatch.setattr(
+        "app.routers.generate.generate_seo_meta_from_text",
+        fake_generate,
+    )
+
+    resp = client.post(
+        f"/api/generate/seo/{content_id}",
+        json={
+            "primary_keyword": "productivity tips",
+            "search_intent": "informational",
+        },
+    )
+    assert resp.status_code == 400
+
+
+def test_generate_seo_422_invalid_id(client: TestClient) -> None:
+    resp = client.post(
+        "/api/generate/seo/not-an-int",
+        json={
+            "primary_keyword": "productivity tips",
+            "search_intent": "informational",
+        },
+    )
+    assert resp.status_code == 422
+
+
+def test_generate_seo_502_service_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+) -> None:
+    content_id = _create_content(
+        client,
+        "This is valid content for testing SEO meta service failure handling.",
+    )
+
+    def failing_generate(
+        _: str,
+        *,
+        title: str | None,
+        primary_keyword: str,
+        search_intent: str,
+        tone: str | None = None,
+    ) -> list[dict[str, Any]]:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(
+        "app.routers.generate.generate_seo_meta_from_text",
+        failing_generate,
+    )
+
+    resp = client.post(
+        f"/api/generate/seo/{content_id}",
+        json={
+            "primary_keyword": "productivity tips",
+            "search_intent": "informational",
+        },
+    )
+    assert resp.status_code == 502
+
+
+def test_generate_seo_500_empty_result(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+) -> None:
+    content_id = _create_content(
+        client,
+        "This is valid content that will produce an empty list of SEO metas.",
+    )
+
+    def empty_generate(
+        _: str,
+        *,
+        title: str | None,
+        primary_keyword: str,
+        search_intent: str,
+        tone: str | None = None,
+    ) -> list[dict[str, Any]]:
+        return []
+
+    monkeypatch.setattr(
+        "app.routers.generate.generate_seo_meta_from_text",
+        empty_generate,
+    )
+
+    resp = client.post(
+        f"/api/generate/seo/{content_id}",
+        json={
+            "primary_keyword": "productivity tips",
+            "search_intent": "informational",
+        },
+    )
+    assert resp.status_code == 500
+
