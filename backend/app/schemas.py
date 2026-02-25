@@ -26,6 +26,7 @@ class ContentResponse(ContentBase):
 
 class LinkedInPostOut(BaseModel):
     """A single generated LinkedIn post from long-form content."""
+
     id: int
     content_id: int
     title: Optional[str]
@@ -37,6 +38,7 @@ class LinkedInPostOut(BaseModel):
 
 class LinkedInGenerateResponse(BaseModel):
     """API response: generated LinkedIn posts for a given content_id."""
+
     content_id: int
     posts: list[LinkedInPostOut]
 
@@ -58,3 +60,28 @@ class TwitterGenerateResponse(BaseModel):
 
     content_id: int
     threads: list[TwitterThreadOut]
+
+
+class InstagramCaptionVariant(BaseModel):
+    """A single generated Instagram caption variant."""
+
+    id: int
+    style: str
+    text: str
+    hashtags: list[str]
+    character_count: int
+
+
+class InstagramCaptionResponse(BaseModel):
+    """API response: generated Instagram captions for a given content_id."""
+
+    content_id: int
+    captions: list[InstagramCaptionVariant]
+
+
+class InstagramGenerateRequest(BaseModel):
+    """Request body to generate Instagram captions for a content item."""
+
+    audience: str
+    tone: str
+    goal: Optional[str] = None

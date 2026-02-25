@@ -85,6 +85,11 @@ the-content-hub/
    DEBUG=True
    ```
 
+   **Database connection checklist (avoids "Connection reset by peer"):**
+   - Use the **direct** connection (host `db.xxx.supabase.co`, port **5432**), not the transaction pooler (port 6543). The app uses asyncpg with SSL; the pooler can cause resets.
+   - If the project was idle, Supabase free tier may hibernate—open the project in the [Supabase Dashboard](https://supabase.com/dashboard) to wake it, then retry.
+   - Ensure the password in `DATABASE_URL` has no special characters that need URL-encoding (or encode them).
+
 5. Run the API:
 
    ```bash
@@ -99,6 +104,10 @@ the-content-hub/
 ### Frontend
 
 Coming soon.
+
+## Troubleshooting
+
+- **`ConnectionResetError: [Errno 54] Connection reset by peer`** when calling the API (e.g. after the first request succeeds): the app now forces SSL for the DB connection. Ensure `DATABASE_URL` uses the **direct** Supabase URL (port 5432, host `db.xxx.supabase.co`). If the project was idle, open it in the [Supabase Dashboard](https://supabase.com/dashboard) to wake it, then retry.
 
 ## Environment Variables
 

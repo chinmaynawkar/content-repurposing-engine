@@ -5,8 +5,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.logging_config import get_logger
 from app.models import Content, GeneratedPost
-from app.schemas import LinkedInGenerateResponse, TwitterGenerateResponse
-from app.services.gemini_service import generate_linkedin_posts_from_text
+from app.schemas import (
+    InstagramCaptionResponse,
+    InstagramGenerateRequest,
+    LinkedInGenerateResponse,
+    TwitterGenerateResponse,
+)
+from app.services.gemini_service import (
+    generate_instagram_captions_from_text,
+    generate_linkedin_posts_from_text,
+)
 from app.services.groq_service import generate_twitter_threads_from_text
 
 
@@ -199,3 +207,83 @@ async def generate_twitter_threads(
 
     # Return the response containing the persisted Twitter threads.
     return TwitterGenerateResponse(content_id=content.id, threads=response_threads)
+
+
+@router.post(
+    "/instagram/{content_id}",
+    response_model=InstagramCaptionResponse,
+    status_code=201,
+)
+async def generate_instagram_captions(
+    content_id: int,
+    body: InstagramGenerateRequest,
+    db: AsyncSession = Depends(get_db),
+) -> InstagramCaptionResponse:
+    """
+    Generate up to 3 Instagram caption variants from long-form content using Gemini.
+
+    Requires request body: audience, tone, optional goal.
+    """
+    result = await db.execute(select(Content).where(Content.id == content_id))
+    content = result.scalar_one_or_none()
+    if content is None:
+        raise HTTPException(status_code=404, detail="Content not found")
+
+    text = (content.original_text or "").strip()
+    if len(text) < 20:
+        raise HTTPException(status_code=400, detail="Content too short for generation")
+
+    try:
+        generated = generate_instagram_captions_from_text(
+            text,
+            audience=body.audience,
+            tone=body.tone,
+            goal=body.goal,
+            title=content.title,
+        )
+    except Exception as exc:
+        log.warning(
+            "gemini_instagram_generation_failed",
+            content_id=content_id,
+            error=str(exc),
+        )
+        raise HTTPException(status_code=502, detail="Instagram generation failed")
+
+    if not generated:
+        log.warning("gemini_returned_no_instagram_captions", content_id=content_id)
+        raise HTTPException(status_code=500, detail="No captions generated")
+
+    caption_rows: list[GeneratedPost] = []
+    for item in generated:
+        row = GeneratedPost(
+            content_id=content.id,
+            platform="instagram",
+            generated_text=item.get("text") or "",
+            post_metadata={
+                "style": item.get("style", "default"),
+                "text": item.get("text", ""),
+                "hashtags": item.get("hashtags") or [],
+                "character_count": item.get("character_count", 0),
+            },
+        )
+        db.add(row)
+        caption_rows.append(row)
+
+    await db.commit()
+    for row in caption_rows:
+        await db.refresh(row)
+
+    captions = []
+    for row in caption_rows:
+        meta = row.post_metadata or {}
+        captions.append(
+            {
+                "id": row.id,
+                "style": meta.get("style", "default"),
+                "text": row.generated_text or meta.get("text", ""),
+                "hashtags": meta.get("hashtags", []),
+                "character_count": meta.get("character_count", len(row.generated_text or "")),
+            }
+        )
+
+    return InstagramCaptionResponse(content_id=content.id, captions=captions)
