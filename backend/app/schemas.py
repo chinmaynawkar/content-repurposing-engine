@@ -114,3 +114,29 @@ class SeoMetaGenerateRequest(BaseModel):
         "commercial",
     ]
     tone: Optional[str] = None
+
+
+class ImageSpec(BaseModel):
+    """A generated image specification backed by Pollinations."""
+
+    id: int
+    type: Literal["image_cover", "image_instagram"]
+    image_url: str
+    width: int
+    height: int
+    style: str
+    prompt: str
+
+
+class ImageGenerateRequest(BaseModel):
+    """Request body to generate an image for a content item."""
+
+    style: str = "minimal_gradient"
+    type: Literal["cover", "instagram"] = "cover"
+
+
+class ImageGenerateResponse(BaseModel):
+    """API response: generated image spec for a given content_id."""
+
+    content_id: int
+    image: ImageSpec

@@ -556,3 +556,98 @@ def test_generate_seo_500_empty_result(
     )
     assert resp.status_code == 500
 
+
+def test_generate_image_happy_path(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+) -> None:
+    content_id = _create_content(
+        client,
+        "This is a sufficiently long piece of content used for image generation tests.",
+    )
+
+    # Make the seed deterministic so the URL is predictable.
+    def fake_randint(_: int, __: int) -> int:
+        return 123456
+
+    monkeypatch.setattr(
+        "app.services.pollinations_service.random.randint",
+        fake_randint,
+    )
+
+    resp = client.post(
+        f"/api/generate/image/{content_id}",
+        json={"style": "minimal_gradient", "type": "cover"},
+    )
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["content_id"] == content_id
+    image = data["image"]
+    assert isinstance(image, dict)
+    assert image["type"] == "image_cover"
+    assert image["style"] == "minimal_gradient"
+    assert image["width"] == 1200
+    assert image["height"] == 630
+    assert "image_url" in image
+    assert "prompt" in image
+    assert "/api/generate/image/serve/" in image["image_url"]
+
+
+def test_generate_image_404_missing_content(client: TestClient) -> None:
+    resp = client.post(
+        "/api/generate/image/999999",
+        json={"style": "minimal_gradient", "type": "cover"},
+    )
+    assert resp.status_code == 404
+
+
+def test_generate_image_400_too_short(client: TestClient) -> None:
+    content_id = _create_content(client, "short text")
+
+    resp = client.post(
+        f"/api/generate/image/{content_id}",
+        json={"style": "minimal_gradient", "type": "cover"},
+    )
+    assert resp.status_code == 400
+
+
+def test_generate_image_422_invalid_id(client: TestClient) -> None:
+    resp = client.post(
+        "/api/generate/image/not-an-int",
+        json={"style": "minimal_gradient", "type": "cover"},
+    )
+    assert resp.status_code == 422
+
+
+def test_serve_generated_image_404_missing_row(client: TestClient) -> None:
+    resp = client.get("/api/generate/image/serve/999999")
+    assert resp.status_code == 404
+
+
+def test_serve_generated_image_503_missing_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+) -> None:
+    content_id = _create_content(
+        client,
+        "This is valid content used to create a generated image row for proxy tests.",
+    )
+
+    # Deterministic seed for generated metadata.
+    monkeypatch.setattr(
+        "app.services.pollinations_service.random.randint",
+        lambda _a, _b: 123456,
+    )
+
+    create_resp = client.post(
+        f"/api/generate/image/{content_id}",
+        json={"style": "minimal_gradient", "type": "cover"},
+    )
+    assert create_resp.status_code == 201
+    image_id = create_resp.json()["image"]["id"]
+
+    monkeypatch.setattr("app.routers.generate.settings.POLLINATIONS_API_KEY", "")
+    serve_resp = client.get(f"/api/generate/image/serve/{image_id}")
+    assert serve_resp.status_code == 503
+

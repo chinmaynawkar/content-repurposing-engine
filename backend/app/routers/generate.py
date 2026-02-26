@@ -1,11 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException
+import httpx
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
 from app.logging_config import get_logger
 from app.models import Content, GeneratedPost
 from app.schemas import (
+    ImageGenerateRequest,
+    ImageGenerateResponse,
     InstagramCaptionResponse,
     InstagramGenerateRequest,
     LinkedInGenerateResponse,
@@ -20,6 +24,10 @@ from app.services.gemini_service import (
 from app.services.groq_service import (
     generate_seo_meta_from_text,
     generate_twitter_threads_from_text,
+)
+from app.services.pollinations_service import (
+    build_pollinations_image_url,
+    generate_image_spec_for_content,
 )
 
 
@@ -215,6 +223,68 @@ async def generate_twitter_threads(
 
 
 @router.post(
+    "/image/{content_id}",
+    response_model=ImageGenerateResponse,
+    status_code=201,
+)
+async def generate_image(
+    content_id: int,
+    body: ImageGenerateRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> ImageGenerateResponse:
+    """
+    Generate a single image specification for a piece of content using Pollinations.
+
+    The backend stores image generation metadata and returns a proxy URL.
+    The browser hits our proxy route, which fetches the upstream image from
+    gen.pollinations.ai with backend credentials.
+    """
+    result = await db.execute(select(Content).where(Content.id == content_id))
+    content = result.scalar_one_or_none()
+    if content is None:
+        raise HTTPException(status_code=404, detail="Content not found")
+
+    text = (content.original_text or "").strip()
+    if len(text) < 20:
+        raise HTTPException(status_code=400, detail="Content too short for generation")
+
+    image_spec = generate_image_spec_for_content(
+        content,
+        style=body.style,
+        requested_type=body.type,
+    )
+
+    platform = "instagram" if image_spec.get("type") == "image_instagram" else "thumbnail"
+
+    row = GeneratedPost(
+        content_id=content.id,
+        platform=platform,
+        generated_text=image_spec.get("prompt", ""),
+        post_metadata=image_spec,
+    )
+    db.add(row)
+    await db.commit()
+    await db.refresh(row)
+
+    meta = row.post_metadata or image_spec
+    proxy_url = str(request.base_url).rstrip("/") + f"/api/generate/image/serve/{row.id}"
+
+    return ImageGenerateResponse(
+        content_id=content.id,
+        image={
+            "id": row.id,
+            "type": meta.get("type"),
+            "image_url": proxy_url,
+            "width": meta.get("width"),
+            "height": meta.get("height"),
+            "style": meta.get("style"),
+            "prompt": meta.get("prompt"),
+        },
+    )
+
+
+@router.post(
     "/instagram/{content_id}",
     response_model=InstagramCaptionResponse,
     status_code=201,
@@ -292,6 +362,72 @@ async def generate_instagram_captions(
         )
 
     return InstagramCaptionResponse(content_id=content.id, captions=captions)
+
+
+@router.get("/image/serve/{generated_post_id}")
+async def serve_generated_image(
+    generated_post_id: int,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """
+    Proxy a generated image via backend to avoid exposing Pollinations API keys.
+    """
+    result = await db.execute(
+        select(GeneratedPost).where(GeneratedPost.id == generated_post_id)
+    )
+    row = result.scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Generated image not found")
+
+    metadata = row.post_metadata or {}
+    if not isinstance(metadata, dict):
+        raise HTTPException(status_code=404, detail="Generated image metadata missing")
+
+    prompt = (metadata.get("prompt_short") or metadata.get("prompt") or "").strip()
+    if not prompt:
+        raise HTTPException(status_code=404, detail="Generated image metadata missing")
+
+    if not settings.POLLINATIONS_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="Image generation proxy is not configured. Set POLLINATIONS_API_KEY.",
+        )
+
+    width = int(metadata.get("width") or 1024)
+    height = int(metadata.get("height") or 1024)
+    model = str(metadata.get("model") or "flux")
+    seed_value = metadata.get("seed")
+    seed = int(seed_value) if seed_value is not None else None
+
+    upstream_url = build_pollinations_image_url(
+        prompt=prompt[:250],
+        width=width,
+        height=height,
+        model=model,
+        seed=seed,
+    )
+
+    headers = {"Authorization": f"Bearer {settings.POLLINATIONS_API_KEY}"}
+    try:
+        async with httpx.AsyncClient(timeout=90.0) as client:
+            upstream_response = await client.get(upstream_url, headers=headers)
+    except httpx.HTTPError as exc:
+        log.warning("pollinations_proxy_request_failed", error=str(exc))
+        raise HTTPException(status_code=502, detail="Pollinations upstream request failed")
+
+    if upstream_response.status_code >= 400:
+        log.warning(
+            "pollinations_proxy_upstream_error",
+            status_code=upstream_response.status_code,
+            body=upstream_response.text[:300],
+        )
+        raise HTTPException(
+            status_code=502,
+            detail=f"Pollinations upstream error: {upstream_response.status_code}",
+        )
+
+    media_type = upstream_response.headers.get("content-type", "image/jpeg")
+    return Response(content=upstream_response.content, media_type=media_type)
 
 
 @router.post(

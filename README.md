@@ -81,6 +81,7 @@ the-content-hub/
    DATABASE_URL=postgresql://postgres:PASSWORD@db.PROJECT.supabase.co:5432/postgres
    GEMINI_API_KEY=AIza...
    GROQ_API_KEY=gsk_...
+   POLLINATIONS_API_KEY=sk_...   # from https://enter.pollinations.ai
    ENVIRONMENT=development
    DEBUG=True
    ```
@@ -108,6 +109,7 @@ Coming soon.
 ## Troubleshooting
 
 - **`ConnectionResetError: [Errno 54] Connection reset by peer`** when calling the API (e.g. after the first request succeeds): the app now forces SSL for the DB connection. Ensure `DATABASE_URL` uses the **direct** Supabase URL (port 5432, host `db.xxx.supabase.co`). If the project was idle, open it in the [Supabase Dashboard](https://supabase.com/dashboard) to wake it, then retry.
+- **Pollinations image error `1033`**: the legacy endpoint `image.pollinations.ai/prompt/...` is unstable. This project now uses `gen.pollinations.ai/image/...` through a backend proxy route (`GET /api/generate/image/serve/{generated_post_id}`) with `POLLINATIONS_API_KEY`. If key is missing, proxy returns `503`.
 
 ## Environment Variables
 
@@ -116,6 +118,7 @@ Coming soon.
 | `DATABASE_URL`   | Supabase PostgreSQL connection string                      |
 | `GEMINI_API_KEY` | Google AI Studio API key                                   |
 | `GROQ_API_KEY`   | Groq Console API key                                       |
+| `POLLINATIONS_API_KEY` | Pollinations API key from `enter.pollinations.ai` (required for image proxy route) |
 | `LOG_LEVEL`      | DEBUG, INFO, WARNING, ERROR (default: INFO)                 |
 | `ENVIRONMENT`    | development or production (affects log format: console/JSON)|
 
