@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import ContentUpload from "./components/ContentUpload";
+import ImageGenerator from "./components/ImageGenerator";
 import { contentApi } from "./services/api";
 import type { Content } from "./types";
 import "./App.css";
@@ -7,6 +8,7 @@ import "./App.css";
 function App() {
   const [contents, setContents] = useState<Content[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedContent, setSelectedContent] = useState<Content | null>(null);
 
   const fetchContents = async () => {
     try {
@@ -47,7 +49,16 @@ function App() {
           )}
           {!loading && contents.length > 0 &&
             contents.map((content) => (
-              <div key={content.id} className="content-card">
+              <button
+                key={content.id}
+                type="button"
+                className={`content-card ${selectedContent?.id === content.id ? "selected" : ""}`}
+                onClick={() =>
+                  setSelectedContent((prev) =>
+                    prev?.id === content.id ? null : content
+                  )
+                }
+              >
                 <h3>{content.title || "Untitled"}</h3>
                 <div className="content-preview">
                   {content.original_text.substring(0, 150)}...
@@ -56,9 +67,17 @@ function App() {
                   <span>{content.word_count} words</span>
                   <span>{new Date(content.created_at).toLocaleDateString()}</span>
                 </div>
-              </div>
+                {selectedContent?.id === content.id && (
+                  <p className="content-card-hint">Selected for AI image. Click again to deselect.</p>
+                )}
+              </button>
             ))}
         </div>
+
+        <section aria-labelledby="ai-images-heading">
+          <h2 id="ai-images-heading" className="visually-hidden">AI Images</h2>
+          <ImageGenerator selectedContent={selectedContent} />
+        </section>
       </main>
     </div>
   );

@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { Content } from "../types";
+import type { Content, ImageGenerateResponse } from "../types";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 
@@ -28,5 +28,16 @@ export const contentApi = {
     return data;
   },
 };
+
+export async function generateImage(
+  contentId: number,
+  payload: { style: string; type: "cover" | "instagram" }
+): Promise<ImageGenerateResponse> {
+  const { data } = await api.post<ImageGenerateResponse>(
+    `/api/generate/image/${contentId}`,
+    payload
+  );
+  return data;
+}
 
 export default api;
