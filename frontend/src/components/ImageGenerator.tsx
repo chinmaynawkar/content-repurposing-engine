@@ -58,29 +58,29 @@ export default function ImageGenerator({ selectedContent }: ImageGeneratorProps)
 
   if (!selectedContent) {
     return (
-      <div className="upload-container">
-        <h2>AI Images</h2>
-        <p className="image-generator-placeholder">
-          Select a content item below to generate an image.
-        </p>
+      <div className="bg-gray-900 rounded-lg border border-gray-800 p-4 sm:p-6">
+        <h2 className="text-lg font-semibold text-white mb-2">AI Images</h2>
+        <p className="text-gray-400">Select a content item to generate an image.</p>
       </div>
     );
   }
 
   return (
-    <div className="upload-container">
-      <h2>AI Images</h2>
-      <p className="image-generator-selected">
+    <div className="bg-gray-900 rounded-lg shadow-card border border-gray-800 p-4 sm:p-6">
+      <h2 className="text-lg font-semibold text-white mb-2">AI Images</h2>
+      <p className="text-gray-400 text-sm mb-4">
         Using: {selectedContent.title || "Untitled"} (ID: {selectedContent.id})
       </p>
-      <form onSubmit={handleSubmit} className="upload-form">
-        <div className="form-group">
-          <label htmlFor="image-style">Style</label>
+      <form onSubmit={handleSubmit} className="space-y-4 mb-6">
+        <div>
+          <label htmlFor="image-style" className="block text-sm font-medium text-gray-300 mb-1">
+            Style
+          </label>
           <select
             id="image-style"
             value={style}
             onChange={(e) => setStyle(e.target.value)}
-            className="form-input"
+            className="w-full min-h-[44px] px-3 py-2 rounded-md bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-accent-primary"
           >
             {STYLE_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -89,13 +89,15 @@ export default function ImageGenerator({ selectedContent }: ImageGeneratorProps)
             ))}
           </select>
         </div>
-        <div className="form-group">
-          <label htmlFor="image-type">Format</label>
+        <div>
+          <label htmlFor="image-type" className="block text-sm font-medium text-gray-300 mb-1">
+            Format
+          </label>
           <select
             id="image-type"
             value={type}
             onChange={(e) => setType(e.target.value as "cover" | "instagram")}
-            className="form-input"
+            className="w-full min-h-[44px] px-3 py-2 rounded-md bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-accent-primary"
           >
             {TYPE_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -104,39 +106,43 @@ export default function ImageGenerator({ selectedContent }: ImageGeneratorProps)
             ))}
           </select>
         </div>
-        {error && <div className="error">{error}</div>}
+        {error && (
+          <div className="p-3 rounded-md bg-danger/10 border border-danger/30 text-danger text-sm">
+            {error}
+          </div>
+        )}
         <button
           type="submit"
           disabled={loading}
-          className="upload-button"
+          className="w-full min-h-[48px] rounded-md font-medium bg-accent-primary text-black hover:bg-accent-hover disabled:opacity-50 py-3"
         >
           {loading ? "Generating…" : "Generate image"}
         </button>
       </form>
 
       {image && (
-        <div className="image-generator-result">
-          <h3>Generated image</h3>
+        <div className="pt-4 border-t border-gray-800">
+          <h3 className="text-white font-medium mb-2">Generated image</h3>
           <img
             src={image.image_url}
             alt={`Generated ${image.style} (${image.width}×${image.height})`}
-            className="image-preview"
+            className="w-full max-w-md rounded-lg border border-gray-700 block"
           />
-          <p className="image-meta">
+          <p className="text-gray-500 text-sm mt-2">
             {image.style} · {image.width}×{image.height}
           </p>
-          <div className="image-actions">
+          <div className="flex flex-wrap gap-2 mt-3">
             <button
               type="button"
               onClick={handleCopyUrl}
-              className="image-action-button"
+              className="min-h-[44px] px-4 py-2 rounded-md bg-gray-800 text-white border border-gray-700 hover:bg-gray-700 text-sm"
             >
               Copy image URL
             </button>
             <button
               type="button"
               onClick={handleOpenInNewTab}
-              className="image-action-button"
+              className="min-h-[44px] px-4 py-2 rounded-md bg-gray-800 text-white border border-gray-700 hover:bg-gray-700 text-sm"
             >
               Open in new tab
             </button>
