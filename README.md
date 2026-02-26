@@ -81,9 +81,15 @@ the-content-hub/
    DATABASE_URL=postgresql://postgres:PASSWORD@db.PROJECT.supabase.co:5432/postgres
    GEMINI_API_KEY=AIza...
    GROQ_API_KEY=gsk_...
+   POLLINATIONS_API_KEY=sk_...   # from https://enter.pollinations.ai
    ENVIRONMENT=development
    DEBUG=True
    ```
+
+   **Database connection checklist (avoids "Connection reset by peer"):**
+   - Use the **direct** connection (host `db.xxx.supabase.co`, port **5432**), not the transaction pooler (port 6543). The app uses asyncpg with SSL; the pooler can cause resets.
+   - If the project was idle, Supabase free tier may hibernate—open the project in the [Supabase Dashboard](https://supabase.com/dashboard) to wake it, then retry.
+   - Ensure the password in `DATABASE_URL` has no special characters that need URL-encoding (or encode them).
 
 5. Run the API:
 
@@ -100,6 +106,11 @@ the-content-hub/
 
 Coming soon.
 
+## Troubleshooting
+
+- **`ConnectionResetError: [Errno 54] Connection reset by peer`** when calling the API (e.g. after the first request succeeds): the app now forces SSL for the DB connection. Ensure `DATABASE_URL` uses the **direct** Supabase URL (port 5432, host `db.xxx.supabase.co`). If the project was idle, open it in the [Supabase Dashboard](https://supabase.com/dashboard) to wake it, then retry.
+- **Pollinations image error `1033`**: the legacy endpoint `image.pollinations.ai/prompt/...` is unstable. This project now uses `gen.pollinations.ai/image/...` through a backend proxy route (`GET /api/generate/image/serve/{generated_post_id}`) with `POLLINATIONS_API_KEY`. If key is missing, proxy returns `503`.
+
 ## Environment Variables
 
 | Variable         | Description                                                |
@@ -107,6 +118,7 @@ Coming soon.
 | `DATABASE_URL`   | Supabase PostgreSQL connection string                      |
 | `GEMINI_API_KEY` | Google AI Studio API key                                   |
 | `GROQ_API_KEY`   | Groq Console API key                                       |
+| `POLLINATIONS_API_KEY` | Pollinations API key from `enter.pollinations.ai` (required for image proxy route) |
 | `LOG_LEVEL`      | DEBUG, INFO, WARNING, ERROR (default: INFO)                 |
 | `ENVIRONMENT`    | development or production (affects log format: console/JSON)|
 

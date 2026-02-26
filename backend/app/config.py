@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     GEMINI_API_KEY: str
     GROQ_API_KEY: str
+    POLLINATIONS_API_KEY: str = ""
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
     LOG_LEVEL: str = "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL

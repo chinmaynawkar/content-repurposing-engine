@@ -1,68 +1,180 @@
+/*
+ * Design system usage:
+ * Primary button: bg-accent-primary text-black
+ * Secondary button: bg-gray-800 text-white border border-gray-700
+ * Cards: bg-gray-900 rounded-lg shadow-card border border-gray-800
+ * Container: layout-container (class) or max-w-[1200px] mx-auto
+ * Page content: page-content or page-content-wide (classes, use responsive vars)
+ */
+@import "tailwindcss";
+
+@theme {
+  /* Primitive colors (design-system.md) */
+  --color-black: #000000;
+  --color-white: #ffffff;
+  --color-gray-950: #0b0b0c;
+  --color-gray-900: #111113;
+  --color-gray-800: #1a1a1d;
+  --color-gray-700: #2a2a2e;
+  --color-gray-600: #3a3a40;
+  --color-gray-500: #6c6c75;
+  --color-gray-400: #9a9aa3;
+  --color-gray-300: #c7c7ce;
+  --color-gray-200: #e5e5ea;
+  --color-gray-100: #f4f4f6;
+  --color-accent-primary: #00ff84;
+  --color-accent-hover: #00e676;
+  --color-danger: #ff4d4f;
+  --color-warning: #ffb020;
+  --color-success: #22c55e;
+  --color-info: #3b82f6;
+
+  /* Semantic colors */
+  --color-bg-primary: var(--color-gray-950);
+  --color-bg-secondary: var(--color-gray-900);
+  --color-bg-tertiary: var(--color-gray-800);
+  --color-text-primary: var(--color-white);
+  --color-text-secondary: var(--color-gray-300);
+  --color-text-muted: var(--color-gray-500);
+  --color-border-subtle: var(--color-gray-800);
+  --color-border-default: var(--color-gray-700);
+
+  /* Spacing (design-system) */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-2xl: 48px;
+  --spacing-3xl: 64px;
+  --spacing-4xl: 96px;
+  --spacing-5xl: 128px;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-pill: 999px;
+
+  /* Typography */
+  --font-heading: "Inter", "SF Pro Display", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Inter", "SF Pro Text", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Shadows */
+  --shadow-subtle: 0px 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-card: 0px 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-modal: 0px 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+/* Responsive layout variables – reuse these via classes below, do not repeat in components */
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --layout-container-max: 1200px;
+  --layout-content-max: 42rem;   /* 672px – readable line length */
+  --layout-form-max: 48rem;      /* 768px – forms */
+  --layout-page-padding-x: 1rem;
+  --layout-page-padding-x-sm: 1.25rem;
+  --layout-page-padding-x-md: 1.5rem;
+  --layout-page-padding-y: 1.5rem;
+  --layout-page-padding-y-sm: 2rem;
+  --layout-section-gap: 2.5rem;
+  --layout-section-gap-sm: 3.5rem;
 }
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
-
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-}
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-@media (prefers-color-scheme: light) {
+@media (min-width: 640px) {
   :root {
-    color: #213547;
-    background-color: #ffffff;
+    --layout-page-padding-x: var(--layout-page-padding-x-sm);
+    --layout-section-gap: var(--layout-section-gap-sm);
   }
-  a:hover {
-    color: #747bff;
+}
+@media (min-width: 768px) {
+  :root {
+    --layout-page-padding-x: var(--layout-page-padding-x-md);
+    --layout-page-padding-y: var(--layout-page-padding-y-sm);
   }
-  button {
-    background-color: #f9f9f9;
+}
+
+@layer base {
+  html {
+    @apply overflow-x-hidden;
+  }
+
+  body {
+    @apply min-h-screen bg-gray-950 text-gray-100 antialiased overflow-x-hidden;
+    font-family: var(--font-body);
+  }
+
+  #root {
+    @apply min-h-screen min-w-0;
+  }
+}
+
+  /* Reusable layout classes using responsive variables – use these instead of repeating breakpoints */
+@layer components {
+  /* Shared container: max-width + responsive horizontal padding. Use in Header, Footer. */
+  .layout-container {
+    max-width: var(--layout-container-max);
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: var(--layout-page-padding-x);
+    padding-right: var(--layout-page-padding-x);
+    box-sizing: border-box;
+  }
+
+  /* Main content area (used in Layout.tsx) */
+  .main-content {
+    flex: 1;
+    width: 100%;
+    min-width: 0;
+    max-width: var(--layout-container-max);
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: var(--layout-page-padding-x);
+    padding-right: var(--layout-page-padding-x);
+    padding-top: var(--layout-page-padding-y);
+    padding-bottom: var(--layout-page-padding-y);
+    box-sizing: border-box;
+  }
+
+  /* Page wrapper: full width of main, capped for readability. Use on Home, etc. */
+  .page-content {
+    width: 100%;
+    min-width: 0;
+    max-width: var(--layout-content-max);
+    box-sizing: border-box;
+  }
+
+  /* Page wrapper for forms: slightly wider. Use on Upload, etc. */
+  .page-content-wide {
+    width: 100%;
+    min-width: 0;
+    max-width: var(--layout-form-max);
+    box-sizing: border-box;
+  }
+
+  /* Section spacing – use for gaps between sections */
+  .section-gap {
+    margin-bottom: var(--layout-section-gap);
+  }
+
+  /* Form and card containers: full width of parent, don’t shrink */
+  .form-card {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  /* Page wrapper for full-width content (Library, Content detail, Analytics) */
+  .page-full {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  /* Input/textarea base: full width, correct box model */
+  .input-field {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
   }
 }

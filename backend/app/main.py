@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import Base, engine, get_db
 from app.logging_config import configure_logging, get_logger
-from app.routers import content
+from app.routers import content, generate
 
 # Configure logging before first log (must run before get_logger in routers/services)
 configure_logging()
@@ -39,7 +39,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5174",
+        "http://localhost:5173",
         "http://127.0.0.1:5174",
     ],
     allow_credentials=True,
@@ -84,6 +84,7 @@ async def health():
 
 
 app.include_router(content.router)
+app.include_router(generate.router)
 
 
 @app.get("/api/health", tags=["Health"])

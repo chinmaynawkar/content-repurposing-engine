@@ -12,3 +12,20 @@ export interface UploadContentData {
   title?: string;
   source_url?: string;
 }
+
+export type ImageType = "image_cover" | "image_instagram";
+
+export interface GeneratedImage {
+  id: number;
+  type: ImageType;
+  image_url: string;
+  width: number;
+  height: number;
+  style: string;
+  prompt: string;
+}
+
+export interface ImageGenerateResponse {
+  content_id: number;
+  image: GeneratedImage;
+}
